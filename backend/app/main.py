@@ -28,7 +28,8 @@ def health():
 @app.get("/ready")
 def ready(db: Session = Depends(get_db)):
     try:
-        db.execute(text("SELECT 1"))
+        db.execute(select(models.Item.id).limit(1))
+        db.execute(select(models.Movement.id).limit(1))
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"database unavailable: {exc.__class__.__name__}")
     return {"status": "ready"}
