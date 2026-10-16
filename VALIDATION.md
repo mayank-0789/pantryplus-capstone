@@ -21,6 +21,12 @@ These checks do not prove PostgreSQL concurrency, Docker execution or an AWS dep
 
 The initial baseline run 38946147648 succeeded before the adaptation was pushed, including image publication and an ephemeral kind smoke test. It validates the starting scaffold only. The revised workflow requires fresh results for the final revision and uses stricter image scan gating. Do not treat that earlier green run as evidence for the final code.
 
+## Final scan follow-up
+
+[Run 38947193580](https://github.com/mayank-0789/pantryplus-capstone/actions/runs/38947193580) passed backend, frontend and infrastructure checks and the frontend image scan. The backend image scan blocked publication on HIGH findings in the Debian 13 base (including util-linux, ncurses, libacl, systemd and perl packages with no fixed Debian versions reported). Runtime Python dependency auditing was clean.
+
+The backend Dockerfile now uses Python 3.12 Alpine for both build and runtime stages to remove that unnecessary Debian package set. Alpine-compatible dependency wheels were checked. Strict scanning remains enabled; a new image build/scan must pass before release. No vulnerability suppressions were added.
+
 ## Remaining acceptance work
 
 - Final-revision image builds and strict Trivy results; resolve any findings before release.
@@ -34,4 +40,8 @@ The inherited Terraform EKS default and Grafana demo authentication require revi
 
 ## History
 
-The source commit is retained. New commits contain real changes and actual creation times; no dates or work intervals were fabricated. The published repository is standalone, with an adapted application baseline.
+The standalone main history contains 12 commits by mayank-0789. The upstream commit is excluded from ancestry; the initial commit imports an existing application baseline. History was rewritten on 17 October 2026 at the owner’s request. Existing work retains its original author dates; rewritten commits have current committer dates, and this documentation correction is dated when made. No work was backdated or spread over invented intervals.
+
+Account-reference cleanup removed the inherited screenshots and obsolete GitOps account URL from main history. The application code is unchanged from successful CI run [38947598961](https://github.com/mayank-0789/pantryplus-capstone/actions/runs/38947598961); all checks, including both strict image scans and the backend runtime smoke test, passed in that run. Rewritten hashes trigger fresh CI.
+
+The separate source-reference document and links to it were removed on 17 October 2026. The README still identifies this as an adaptation of an existing application. This cleanup uses its actual timestamp.

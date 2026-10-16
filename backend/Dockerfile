@@ -1,16 +1,16 @@
-FROM python:3.12-slim AS deps
+FROM python:3.12-alpine AS deps
 WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-FROM python:3.12-slim
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+FROM python:3.12-alpine
+RUN apk upgrade --no-cache
 WORKDIR /srv
 COPY --from=deps /install /usr/local
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini entrypoint.sh ./
-RUN addgroup --system --gid 10001 api && adduser --system --uid 10001 --ingroup api api \
+RUN addgroup -S -g 10001 api && adduser -S -D -H -u 10001 -G api api \
  && chmod +x entrypoint.sh
 USER 10001
 ARG APP_VERSION=dev
