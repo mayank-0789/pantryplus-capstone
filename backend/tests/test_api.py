@@ -67,3 +67,14 @@ def test_metrics_endpoint(client):
     body = client.get("/metrics").text
     assert _metric(body, "pantry_items_added_total") == before + 1
     assert 'pantry_http_requests_total{method="POST",route="/api/items",status="201"}' in body
+
+
+def test_expiry_filters_match_stats(client):
+    today = date.today()
+    for name, days, quantity in [('today', 0, 1), ('week', 7, 1), ('old', -1, 1), ('empty', 2, 0)]:
+        client.post('/api/items', json={'name': name, 'quantity': quantity,
+            'expires_on': (today + timedelta(days=days)).isoformat()})
+    assert [x['name'] for x in client.get('/api/items?expiring=true').json()] == ['today', 'week']
+    assert [x['name'] for x in client.get('/api/items?expired=true').json()] == ['old']
+    assert client.get('/api/items/stats').json()['expiring_soon'] == 2
+    assert client.get('/api/items?category=invalid').status_code == 422
