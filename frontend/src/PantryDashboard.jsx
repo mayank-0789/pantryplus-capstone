@@ -106,9 +106,9 @@ export default function PantryDashboard() {
           <section className="editor"><h3 ref={editHeading} tabIndex={-1}>{editing !== null ? "Edit item details" : "Add to your pantry"}</h3>
             <form className="add" onSubmit={saveItem}>
               <label>Item name<input required maxLength={80} value={form.name} onChange={setField("name")} placeholder="e.g. Basmati rice" /></label>
-              <label>Category<select value={form.category} onChange={setField("category")}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
+              <label>Category<select aria-label="Category" value={form.category} onChange={setField("category")}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
               <label>Quantity<input type="number" required min="0" max="99999999.99" step="0.01" disabled={editing !== null} value={form.quantity} onChange={setField("quantity")} /></label>
-              <label>Unit<select disabled={editing !== null} value={form.unit} onChange={setField("unit")}>{UNITS.map(u => <option key={u}>{u}</option>)}</select></label>
+              <label>Unit<select aria-label="Unit" disabled={editing !== null} value={form.unit} onChange={setField("unit")}>{UNITS.map(u => <option key={u}>{u}</option>)}</select></label>
               <label>Low stock at<input type="number" required min="0" max="99999999.99" step="0.01" value={form.min_quantity} onChange={setField("min_quantity")} /></label>
               <label>Best before<input type="date" value={form.expires_on} onChange={setField("expires_on")} /></label>
               <label>Location<input maxLength={40} value={form.location} onChange={setField("location")} placeholder="Kitchen shelf" /></label>
