@@ -27,8 +27,6 @@ class ItemIn(Input):
 class ItemUpdate(Input):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     category: Category | None = None
-    quantity: Quantity | None = None
-    unit: Unit | None = None
     min_quantity: Quantity | None = None
     expires_on: date | None = None
     location: str | None = Field(default=None, max_length=40)
@@ -59,3 +57,20 @@ class Stats(BaseModel):
     low_stock: int
     expiring_soon: int
     expired: int
+
+
+class StockChange(Consume):
+    note: str = Field(default="", max_length=200)
+
+
+class MovementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    item_id: int | None
+    item_name: str
+    unit: Unit
+    kind: str
+    amount: Decimal
+    balance: Decimal
+    note: str
+    created_at: datetime
