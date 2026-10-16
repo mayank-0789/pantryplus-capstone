@@ -1,15 +1,17 @@
-name: ci-cd
-
+name: Pantry Plus checks
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
-
+permissions:
+  contents: read
+concurrency:
+  group: pantry-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  test:
-    name: backend tests
+  backend:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -18,19 +20,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
-      - run: pip install -r requirements-dev.txt
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt pip-audit bandit
       - run: python -m pytest -v --junitxml=junit.xml
+      - run: bandit -r app -ll
+      - run: pip-audit -r requirements.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: backend-test-results
           path: backend/junit.xml
-
   frontend:
-    name: frontend build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,109 +39,81 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm test
+      - run: npm audit --audit-level=high
       - run: npm run build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist
-
-  images:
-    name: image ${{ matrix.service }}
+  infrastructure:
     runs-on: ubuntu-latest
-    needs: [test, frontend]
-    strategy:
-      matrix:
-        service: [backend, frontend]
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      tag: ${{ steps.meta.outputs.tag }}
-      owner: ${{ steps.meta.outputs.owner }}
     steps:
       - uses: actions/checkout@v4
-      - id: meta
-        run: |
-          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
-          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/pantry/${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+      - uses: azure/setup-helm@v4
+      - run: helm lint helm/pantry && helm template pantry helm/pantry --namespace pantry > /tmp/rendered.yaml
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: terraform -chdir=terraform fmt -check && terraform -chdir=terraform init -backend=false && terraform -chdir=terraform validate
+  images:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, infrastructure]
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.service }}
           load: true
-          build-args: APP_VERSION=${{ steps.meta.outputs.tag }}
-          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-      - name: trivy
-        uses: aquasecurity/trivy-action@v0.36.0
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: pantry-${{ matrix.service }}:${{ github.sha }}
+      - name: Scan every HIGH and CRITICAL vulnerability
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-      - name: trivy report
-        uses: aquasecurity/trivy-action@v0.36.0
-        if: always()
-        with:
-          image-ref: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          image-ref: pantry-${{ matrix.service }}:${{ github.sha }}
           format: json
           output: trivy-${{ matrix.service }}.json
           severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: '1'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: trivy-${{ matrix.service }}
+          name: scan-${{ matrix.service }}
           path: trivy-${{ matrix.service }}.json
-      - name: push
-        if: github.event_name != 'pull_request'
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker push ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
-
-  deploy:
-    name: helm deploy (kind)
-    runs-on: ubuntu-latest
+      - run: docker save pantry-${{ matrix.service }}:${{ github.sha }} -o /tmp/${{ matrix.service }}.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+          path: /tmp/${{ matrix.service }}.tar
+          retention-days: 1
+  publish:
+    # Explicit release opt-in; both image scans must succeed first.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_IMAGE_PUBLISH == 'true'
     needs: images
-    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: helm/kind-action@v1
+      - uses: actions/download-artifact@v4
         with:
-          cluster_name: ci
-      - uses: azure/setup-helm@v4
-      - run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl -n pantry create secret docker-registry ghcr \
-            --docker-server=ghcr.io --docker-username=${{ github.actor }} --docker-password=${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          helm upgrade --install pantry helm/pantry \
-            --set image.backend=ghcr.io/${{ needs.images.outputs.owner }}/pantry/backend \
-            --set image.frontend=ghcr.io/${{ needs.images.outputs.owner }}/pantry/frontend \
-            --set image.tag=${{ needs.images.outputs.tag }} \
-            --set image.pullPolicy=IfNotPresent --set image.pullSecret=ghcr \
-            --set ingress.enabled=false --set backend.hpa.enabled=false \
-            --wait --timeout 5m
-          kubectl -n pantry get pods,svc
-      - if: failure()
+          pattern: image-*
+          merge-multiple: true
+          path: /tmp/images
+      - name: Publish the scanned images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          kubectl -n pantry get pods -o wide
-          kubectl -n pantry describe pods | sed -n '/^Events/,$p'
-          kubectl -n pantry logs -l app.kubernetes.io/name=backend --tail=50 || true
-      - name: smoke test
-        run: |
-          kubectl -n pantry run smoke --rm -i --restart=Never --image=curlimages/curl:8.10.1 -- sh -c '
-            set -e
-            curl -fs http://pantry-frontend/ready
-            curl -fs -X POST http://pantry-frontend/api/items -H "Content-Type: application/json" -d "{\"name\":\"ci banana\",\"category\":\"produce\",\"quantity\":6}"
-            curl -fs http://pantry-frontend/api/items/stats
-            curl -fs http://pantry-frontend/metrics | grep pantry_items_added_total'
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          for service in backend frontend; do
+            docker load -i "/tmp/images/$service.tar"
+            target="ghcr.io/${GITHUB_REPOSITORY,,}/$service:$GITHUB_SHA"
+            docker tag "pantry-$service:$GITHUB_SHA" "$target"
+            docker push "$target"
+          done
