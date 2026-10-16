@@ -11,13 +11,13 @@ spec:
     path: helm/pantry
     helm:
       releaseName: pantry
-      valueFiles: [values.yaml]
+      valueFiles: [values.yaml, values-gitops.yaml]
   destination:
     server: https://kubernetes.default.svc
     namespace: pantry
   syncPolicy:
-    automated: { prune: true, selfHeal: true }
-    syncOptions: [CreateNamespace=true]
+    # Enable automated sync after setting a published SHA and verifying the target cluster.
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true]
   ignoreDifferences:
     - group: apps
       kind: Deployment

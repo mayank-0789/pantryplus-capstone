@@ -3,7 +3,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: {{ .Release.Name }}-backend
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Release.Namespace }}
   labels: {{- include "it.labels" . | nindent 4 }}
 spec:
   scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: {{ .Release.Name }}-backend }

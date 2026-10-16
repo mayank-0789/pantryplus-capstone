@@ -1,0 +1,8 @@
+# Replace this tag with a full commit SHA after both scanned images are published.
+image:
+  backend: ghcr.io/mayank-0789/pantryplus-capstone/backend
+  frontend: ghcr.io/mayank-0789/pantryplus-capstone/frontend
+  tag: REPLACE_WITH_PUBLISHED_COMMIT_SHA
+  pullPolicy: IfNotPresent
+postgres:
+  existingSecret: pantry-db

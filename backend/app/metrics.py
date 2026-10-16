@@ -13,7 +13,7 @@ CONSUMED = Counter("pantry_consumed_total", "Quantity consumed, by unit", ["unit
 
 def _route(request: Request) -> str:
     route = request.scope.get("route")
-    return getattr(route, "path", request.url.path)
+    return getattr(route, "path", "__unmatched__")
 
 
 def install(app: FastAPI) -> None:
