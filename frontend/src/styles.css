@@ -32,3 +32,27 @@ th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: upp
 .actions { white-space: nowrap; } .actions button { margin-left: 4px; } .x { background: transparent; color: var(--muted); border-color: transparent; }
 .error { color: var(--bad); }
 @media (max-width: 820px) { .shell { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } .add { grid-template-columns: 1fr 1fr; } }
+:root { --accent: #226b61; --bg: #f3f5ef; --muted: #686d62; }
+main { max-width: 1500px; min-width: 0; width: 100%; }
+.side { background: #173d38; position: relative; }
+.brand-mark { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #81b4a7; border-radius: 14px; margin-bottom: 24px; font-size: 22px; }
+.side nav button.active { background: #2d5850; border-color: #609485; }
+.side-foot { margin-top: 64px; color: #b8d0c8; font-size: 11px; line-height: 1.8; letter-spacing: .08em; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.page-heading h2 { font-size: clamp(24px, 3vw, 36px); line-height: 1.15; font-weight: 550; margin: 10px 0 0; letter-spacing: -.03em; }
+.eyebrow { font-size: 10px; letter-spacing: .16em; color: var(--accent); font-weight: 700; }
+.editor { padding: 20px; background: white; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 24px; }
+h3 { margin: 0 0 16px; font-size: 17px; }
+.add { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 0; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #596158; }
+input, select { min-width: 0; width: 100%; font-size: 14px; }
+.form-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.table-scroll { overflow-x: auto; border-radius: 12px; }
+.table-scroll table { min-width: 780px; }
+.actions { white-space: normal; min-width: 205px; }
+.actions button { font-size: 12px; margin: 3px; padding: 6px 8px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #58a58d; outline-offset: 2px; }
+.modal-backdrop { position: fixed; inset: 0; background: #102620aa; display: grid; place-items: center; padding: 16px; z-index: 10; }
+.stock-dialog { background: white; padding: 24px; border-radius: 16px; width: min(100%, 420px); }
+.stock-dialog form { display: grid; gap: 16px; }
+@media(max-width: 820px) { main { padding: 20px 16px; } .side { padding: 20px; } .brand-mark, .side-foot { display: none; } .side nav { grid-template-columns: repeat(3, 1fr); margin-top: 16px; } .add { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

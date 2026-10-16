@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import datetime, timezone, timedelta
 
 from fastapi import Query, Depends, FastAPI, HTTPException, Response, status
 from sqlalchemy import func, select, text, update
@@ -42,16 +42,16 @@ def browse_pantry(category: schemas.Category | None = None, low_stock: bool = Fa
     if low_stock:
         q = q.where(models.Item.quantity <= models.Item.min_quantity)
     if expiring:
-        q = q.where(models.Item.quantity > 0, models.Item.expires_on >= date.today(),
-                    models.Item.expires_on <= date.today() + timedelta(days=SOON))
+        q = q.where(models.Item.quantity > 0, models.Item.expires_on >= datetime.now(timezone.utc).date(),
+                    models.Item.expires_on <= datetime.now(timezone.utc).date() + timedelta(days=SOON))
     if expired:
-        q = q.where(models.Item.quantity > 0, models.Item.expires_on < date.today())
+        q = q.where(models.Item.quantity > 0, models.Item.expires_on < datetime.now(timezone.utc).date())
     return db.scalars(q).all()
 
 
 @app.get("/api/items/stats", response_model=schemas.Stats)
 def summarize_pantry(db: Session = Depends(get_db)):
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     by_category = dict(db.execute(select(models.Item.category, func.count()).group_by(models.Item.category)).all())
     low = db.scalar(select(func.count()).where(models.Item.quantity <= models.Item.min_quantity)) or 0
     soon = db.scalar(select(func.count()).where(models.Item.quantity > 0, models.Item.expires_on >= today,

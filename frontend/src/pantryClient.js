@@ -6,7 +6,9 @@ async function request(path, options = {}) {
   return body;
 }
 
-export const api = {
+export const pantryClient = {
+  activity: () => request("/api/activity"),
+  changeStock: (id, kind, amount, note) => request(`/api/items/${id}/${kind}`, { method: "POST", body: JSON.stringify({ amount, note }) }),
   ready: () => request("/ready"),
   list: (params = {}) => request("/api/items?" + new URLSearchParams(params)),
   stats: () => request("/api/items/stats"),
