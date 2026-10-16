@@ -1,0 +1,8 @@
+backend:
+  replicas: 1
+  hpa:
+    enabled: false
+frontend:
+  replicas: 1
+ingress:
+  host: pantry.dev.local

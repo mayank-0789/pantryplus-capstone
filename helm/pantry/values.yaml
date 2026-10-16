@@ -1,0 +1,44 @@
+namespace: pantry
+
+image:
+  backend: pantry-api
+  frontend: pantry-ui
+  tag: "1.0"
+  pullPolicy: Never
+  pullSecret: ""
+
+backend:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPU: 60
+
+frontend:
+  replicas: 3
+  resources:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits:   { cpu: 100m, memory: 64Mi }
+
+postgres:
+  image: postgres:16-alpine
+  database: pantry
+  user: pantry
+  password: pantry-demo-password
+  existingSecret: ""
+  storage: 1Gi
+  storageClassName: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  host: pantry.local
+
+postgresHostOverride: ""
+
+monitoring:
+  scrapeAnnotations: true

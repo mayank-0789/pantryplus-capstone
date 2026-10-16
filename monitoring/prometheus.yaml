@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: pantry
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus-pantry
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, endpoints, nodes, nodes/metrics]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-pantry
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: prometheus-pantry }
+subjects:
+  - { kind: ServiceAccount, name: prometheus, namespace: pantry }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: pantry
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+      evaluation_interval: 10s
+    rule_files: [/etc/prometheus/alerts.yml]
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces: { names: [pantry] }
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: app
+  alerts.yml: |
+    groups:
+      - name: pantry
+        rules:
+          - alert: BackendHighErrorRate
+            expr: sum(rate(pantry_http_requests_total{status=~"5.."}[2m])) / sum(rate(pantry_http_requests_total[2m])) > 0.05
+            for: 2m
+            labels: { severity: warning }
+            annotations: { summary: "More than 5% of backend requests are failing" }
+          - alert: BackendDown
+            expr: absent(up{app="backend"} == 1)
+            for: 1m
+            labels: { severity: critical }
+            annotations: { summary: "No backend Pod is being scraped" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: pantry
+  labels: { app.kubernetes.io/name: prometheus }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: prometheus } }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: prometheus }
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.55.1
+          args: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d"]
+          ports: [{ containerPort: 9090, name: http }]
+          volumeMounts: [{ name: config, mountPath: /etc/prometheus }]
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: config
+          configMap: { name: prometheus-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: pantry
+spec:
+  selector: { app.kubernetes.io/name: prometheus }
+  ports: [{ port: 9090, targetPort: http }]

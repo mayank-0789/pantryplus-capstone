@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: pantry
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - { name: Prometheus, type: prometheus, access: proxy, url: http://prometheus:9090, isDefault: true }
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - { name: pantry, type: file, options: { path: /var/lib/grafana/dashboards } }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: pantry
+data:
+  pantry.json: |
+    {
+      "title": "Pantry", "uid": "pantry", "refresh": "10s", "schemaVersion": 39,
+      "time": {"from": "now-15m", "to": "now"},
+      "panels": [
+        {"type": "timeseries", "title": "Requests per second by route", "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+         "targets": [{"expr": "sum by (route) (rate(pantry_http_requests_total[1m]))", "legendFormat": "{{route}}"}]},
+        {"type": "timeseries", "title": "p95 latency", "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+         "fieldConfig": {"defaults": {"unit": "s"}},
+         "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(pantry_http_request_duration_seconds_bucket[1m])))", "legendFormat": "p95"}]},
+        {"type": "stat", "title": "Items added", "gridPos": {"x": 0, "y": 8, "w": 6, "h": 6},
+         "targets": [{"expr": "sum(pantry_items_added_total)"}]},
+        {"type": "stat", "title": "Error rate", "gridPos": {"x": 6, "y": 8, "w": 6, "h": 6},
+         "fieldConfig": {"defaults": {"unit": "percentunit"}},
+         "targets": [{"expr": "sum(rate(pantry_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(pantry_http_requests_total[5m]))"}]},
+        {"type": "timeseries", "title": "Backend Pods scraped", "gridPos": {"x": 12, "y": 8, "w": 12, "h": 6},
+         "targets": [{"expr": "sum(up{app=\"backend\"})", "legendFormat": "up"}]}
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: pantry
+  labels: { app.kubernetes.io/name: grafana }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: grafana } }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.3.0
+          ports: [{ containerPort: 3000, name: http }]
+          env:
+            - { name: GF_SECURITY_ADMIN_USER, value: admin }
+            - { name: GF_SECURITY_ADMIN_PASSWORD, value: admin }
+            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "true" }
+            - { name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: Viewer }
+          volumeMounts:
+            - { name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasource.yml, subPath: datasource.yml }
+            - { name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml, subPath: dashboards.yml }
+            - { name: dashboard, mountPath: /var/lib/grafana/dashboards }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+      volumes:
+        - name: provisioning
+          configMap: { name: grafana-provisioning }
+        - name: dashboard
+          configMap: { name: grafana-dashboard }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: pantry
+spec:
+  selector: { app.kubernetes.io/name: grafana }
+  ports: [{ port: 3000, targetPort: http }]

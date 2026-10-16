@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "it.labels" . | nindent 4 }}
+data:
+  APP_VERSION: {{ .Values.image.tag | quote }}
+  POSTGRES_HOST: {{ .Values.postgresHostOverride | default (printf "%s-postgres" .Release.Name) }}
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}

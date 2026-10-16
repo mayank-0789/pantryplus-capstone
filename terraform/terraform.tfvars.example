@@ -1,0 +1,7 @@
+region             = "ap-south-1"
+project            = "pantry"
+environment        = "dev"
+vpc_cidr           = "10.40.0.0/16"
+availability_zones = ["ap-south-1a", "ap-south-1b"]
+node_instance_type = "t3.medium"
+node_desired       = 2

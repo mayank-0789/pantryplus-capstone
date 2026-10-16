@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pantry
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/mayank-0789/pantryplus-capstone.git
+    targetRevision: main
+    path: helm/pantry
+    helm:
+      releaseName: pantry
+      valueFiles: [values.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pantry
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: pantry-backend
+      jsonPointers: [/spec/replicas]

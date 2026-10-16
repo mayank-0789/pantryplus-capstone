@@ -1,0 +1,5 @@
+{{ .Chart.Name }} release "{{ .Release.Name }}" (revision {{ .Release.Revision }}) in namespace {{ .Values.namespace }}.
+  kubectl -n {{ .Values.namespace }} get pods,svc,ingress,hpa
+{{- if .Values.ingress.enabled }}
+  Add "<ingress-ip> {{ .Values.ingress.host }}" to /etc/hosts, then open http://{{ .Values.ingress.host }}/
+{{- end }}

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-backend
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "it.labels" . | nindent 4 }}
+    {{- include "it.component" "backend" | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels: {{- include "it.component" "backend" | nindent 6 }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels: {{- include "it.component" "backend" | nindent 8 }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.monitoring.scrapeAnnotations }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+        {{- end }}
+    spec:
+      {{- if .Values.image.pullSecret }}
+      imagePullSecrets: [{ name: {{ .Values.image.pullSecret }} }]
+      {{- end }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.backend }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ containerPort: 8000, name: http }]
+          env:
+            - name: APP_VERSION
+              valueFrom: { configMapKeyRef: { name: {{ .Release.Name }}-config, key: APP_VERSION } }
+            - name: PGHOST
+              valueFrom: { configMapKeyRef: { name: {{ .Release.Name }}-config, key: POSTGRES_HOST } }
+            - name: PGDB
+              valueFrom: { configMapKeyRef: { name: {{ .Release.Name }}-config, key: POSTGRES_DB } }
+            - name: PGUSER
+              valueFrom: { configMapKeyRef: { name: {{ .Release.Name }}-config, key: POSTGRES_USER } }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "it.dbSecretName" . }}, key: POSTGRES_PASSWORD } }
+            - name: DATABASE_URL
+              value: "postgresql+psycopg://$(PGUSER):$(PGPASSWORD)@$(PGHOST):5432/$(PGDB)"
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 3
+            failureThreshold: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 20
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-backend
+  namespace: {{ .Values.namespace }}
+  labels: {{- include "it.labels" . | nindent 4 }}
+    {{- include "it.component" "backend" | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector: {{- include "it.component" "backend" | nindent 4 }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: 80
+      targetPort: http
+      name: http
